@@ -290,9 +290,18 @@ function resize() {
   DPR = Math.min(2, window.devicePixelRatio || 1);
   W = window.innerWidth; H = window.innerHeight;
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
-  s = Math.min(W / FIELD, H / 720);
-  ox = (W - FIELD * s) / 2;
-  anchorY = H * 0.74;
+  // on portrait screens zoom in: show about 420 of the 640-wide field and pan the camera with the leader
+  const portrait = W < H * .9;
+  s = portrait ? Math.min(W / 420, H / 760) : Math.min(W / FIELD, H / 720);
+  anchorY = H * (portrait ? .66 : .74);
+  placeCamera(1);
+}
+let camX = FIELD / 2;
+function placeCamera(k) {
+  const half = W / s / 2;
+  const target = half * 2 >= FIELD || !leader ? FIELD / 2 : clamp(leader.x, half - 30, FIELD - half + 30);
+  camX += (target - camX) * k;
+  ox = W / 2 - camX * s;
 }
 
 /* ---------- audio ---------- */
@@ -856,7 +865,8 @@ function update(dt) {
   if (playing) {
     steer = (keys.right ? 1 : 0) - (keys.left ? 1 : 0); spur = keys.up; rein = keys.down;
     if (ptr.active) {
-      steer = clamp(((ptr.x - ox) / s - L.x) / 40, -1, 1);
+      // finger relative to the leader on screen; with the panning camera this acts like a joystick
+      steer = clamp((ptr.x - (ox + L.x * s)) / (40 * s), -1, 1);
       if (ptr.y < anchorY - 90 * s) spur = true; else if (ptr.y > anchorY + 70 * s) rein = true;
     }
   } else if (mode === 'demo') {
@@ -1615,6 +1625,7 @@ function frame(t) {
     else update(dt);
     if (state === 'play') updateHud();
   } else { shake = Math.max(0, shake - dt * 30); hurtFlash = Math.max(0, hurtFlash - dt * 2); }
+  placeCamera(Math.min(1, dt * 5));
   render();
   requestAnimationFrame(frame);
 }
